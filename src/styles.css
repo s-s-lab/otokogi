@@ -1197,6 +1197,398 @@ button:disabled {
   font-size: 13px;
 }
 
+.rank-guide-page {
+  gap: 24px;
+}
+
+.rank-goal-card {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 22px;
+  padding: 27px 30px;
+  border: 1px solid rgba(211, 146, 43, 0.32);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 92% 15%, rgba(255, 245, 193, 0.35), transparent 35%),
+    linear-gradient(135deg, #202628, #16191a);
+  color: #fff;
+  box-shadow: 0 18px 45px rgba(23, 26, 28, 0.14);
+}
+
+.rank-goal-card::after {
+  content: "男";
+  position: absolute;
+  right: 23%;
+  bottom: -51px;
+  color: rgba(255, 255, 255, 0.035);
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-size: 170px;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.rank-goal-icon {
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 18px 7px 18px 7px;
+  background: var(--gold);
+  color: #fff7d5;
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.09);
+}
+
+.rank-goal-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.rank-goal-copy > span {
+  color: #e5b858;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+}
+
+.rank-goal-copy h2 {
+  margin: 5px 0 7px;
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-size: 24px;
+}
+
+.rank-goal-copy p {
+  max-width: 600px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 11px;
+  line-height: 1.8;
+}
+
+.rank-goal-stats {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 10px;
+}
+
+.rank-goal-stats > div {
+  min-width: 96px;
+  padding: 13px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  text-align: center;
+}
+
+.rank-goal-stats strong,
+.rank-goal-stats span {
+  display: block;
+}
+
+.rank-goal-stats strong {
+  color: #efbf58;
+  font-family: Georgia, serif;
+  font-size: 27px;
+  line-height: 1;
+}
+
+.rank-goal-stats span {
+  margin-top: 5px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.member-rank-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.member-rank-card {
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--white);
+}
+
+.member-rank-person {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.member-rank-person > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.member-rank-person strong,
+.member-rank-person span {
+  display: block;
+}
+
+.member-rank-person strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-rank-person span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.member-rank-person > b {
+  color: var(--red);
+  font-family: Georgia, serif;
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.member-rank-card h3 {
+  overflow: hidden;
+  margin: 13px 0 9px;
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-rank-target {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.member-rank-target strong {
+  color: var(--red);
+}
+
+.rank-ladder {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.rank-level-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 253, 248, 0.72);
+}
+
+.rank-level-card.reached {
+  border-color: rgba(29, 105, 116, 0.24);
+  background: rgba(29, 105, 116, 0.045);
+}
+
+.rank-level-card.current {
+  border-color: rgba(200, 60, 50, 0.38);
+  background: rgba(200, 60, 50, 0.055);
+  box-shadow: inset 0 0 0 1px rgba(200, 60, 50, 0.08);
+}
+
+.rank-level-number {
+  display: grid;
+  place-content: center;
+  border-right: 1px solid var(--line);
+  background: rgba(23, 26, 28, 0.035);
+  text-align: center;
+}
+
+.rank-level-number span {
+  color: var(--muted);
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.rank-level-number strong {
+  margin-top: 2px;
+  color: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 23px;
+}
+
+.rank-level-card.current .rank-level-number {
+  background: var(--red);
+}
+
+.rank-level-card.current .rank-level-number span,
+.rank-level-card.current .rank-level-number strong {
+  color: #fff;
+}
+
+.rank-level-main {
+  min-width: 0;
+  padding: 13px 14px 12px;
+}
+
+.rank-level-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.rank-level-heading > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.rank-level-heading span {
+  color: var(--red);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.rank-level-heading h3 {
+  overflow: hidden;
+  margin: 2px 0 0;
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-level-heading b {
+  padding: 4px 6px;
+  border-radius: 5px;
+  background: rgba(29, 105, 116, 0.1);
+  color: var(--teal);
+  font-size: 7px;
+  white-space: nowrap;
+}
+
+.rank-level-card.current .rank-level-heading b {
+  background: rgba(200, 60, 50, 0.1);
+  color: var(--red);
+}
+
+.rank-level-main > p {
+  margin: 8px 0 10px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.rank-level-width {
+  min-height: 18px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(23, 26, 28, 0.07);
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.rank-level-width strong {
+  color: var(--ink);
+  font-size: 9px;
+}
+
+.rank-level-card:last-child {
+  border-color: rgba(211, 146, 43, 0.4);
+  background: linear-gradient(135deg, rgba(211, 146, 43, 0.09), rgba(255, 253, 248, 0.82));
+}
+
+.rank-level-card:last-child .rank-level-number {
+  background: var(--gold);
+}
+
+.rank-level-card:last-child .rank-level-number span,
+.rank-level-card:last-child .rank-level-number strong {
+  color: #fff;
+}
+
+.rank-level-card:last-child .rank-level-width {
+  color: var(--gold);
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.point-rule-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.point-rule-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--white);
+}
+
+.point-rule-card > span {
+  grid-row: span 2;
+  font-size: 25px;
+}
+
+.point-rule-card > div {
+  min-width: 0;
+}
+
+.point-rule-card strong,
+.point-rule-card small {
+  display: block;
+}
+
+.point-rule-card strong {
+  font-size: 11px;
+}
+
+.point-rule-card small {
+  overflow: hidden;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.point-rule-card > b {
+  grid-column: 2;
+  color: var(--red);
+  font-family: Georgia, serif;
+  font-size: 14px;
+}
+
+.rank-note {
+  margin: 14px 0 0;
+  padding: 11px 13px;
+  border-radius: 8px;
+  background: rgba(29, 105, 116, 0.07);
+  color: var(--teal);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
 .group-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1861,7 +2253,7 @@ button:disabled {
 
   .mobile-menu {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     width: min(100% - 32px, 680px);
     margin: 0 auto;
     padding: 6px 0 13px;
@@ -1916,6 +2308,22 @@ button:disabled {
   .content-grid,
   .group-grid {
     grid-template-columns: 1fr;
+  }
+
+  .rank-goal-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .rank-goal-stats {
+    grid-column: 1 / -1;
+  }
+
+  .member-rank-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .point-rule-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .match-card {
@@ -1995,7 +2403,7 @@ button:disabled {
     bottom: 0;
     left: 0;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     align-items: end;
     padding: 7px max(8px, env(safe-area-inset-right))
       calc(7px + env(safe-area-inset-bottom))
@@ -2170,6 +2578,40 @@ button:disabled {
 
   .page-title .button {
     width: 100%;
+  }
+
+  .rank-goal-card {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 22px 19px;
+    text-align: center;
+  }
+
+  .rank-goal-icon {
+    margin: 0 auto;
+  }
+
+  .rank-goal-stats {
+    grid-column: auto;
+    justify-content: center;
+  }
+
+  .rank-goal-stats > div {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .member-rank-grid,
+  .rank-ladder {
+    grid-template-columns: 1fr;
+  }
+
+  .rank-level-card {
+    grid-template-columns: 57px minmax(0, 1fr);
+  }
+
+  .point-rule-grid {
+    grid-template-columns: 1fr;
   }
 
   .group-meta {
