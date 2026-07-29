@@ -838,6 +838,7 @@ function Dashboard({
             <OtokogiIllustration
               stage={level.stage}
               name={leader?.member.name ?? '挑戦者'}
+              level={level.order}
             />
             <div className="brush-label">
               <span>{level.shortName}</span>
@@ -1149,6 +1150,14 @@ function RankGuideView({
                 <div className="rank-level-number">
                   <span>LEVEL</span>
                   <strong>{String(level.order).padStart(2, '0')}</strong>
+                </div>
+                <div className="rank-level-illustration">
+                  <OtokogiIllustration
+                    stage={level.stage}
+                    level={level.order}
+                    name={level.name}
+                    compact
+                  />
                 </div>
                 <div className="rank-level-main">
                   <div className="rank-level-heading">
