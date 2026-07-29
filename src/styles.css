@@ -199,6 +199,42 @@ button:disabled {
   margin-left: auto;
 }
 
+.sync-pill {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid rgba(29, 105, 116, 0.18);
+  border-radius: 999px;
+  background: rgba(29, 105, 116, 0.07);
+  color: var(--teal);
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.sync-pill.error {
+  border-color: rgba(200, 60, 50, 0.22);
+  background: rgba(200, 60, 50, 0.08);
+  color: var(--red-dark);
+}
+
+.sync-pill.loading,
+.sync-pill.saving {
+  color: var(--gold);
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .group-switcher,
 .filter-select,
 .select-wrap {
@@ -335,6 +371,45 @@ button:disabled {
   width: min(100% - 48px, 1240px);
   margin: 0 auto;
   padding: 52px 0 80px;
+}
+
+.sync-alert,
+.sync-notice {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 22px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sync-alert {
+  border: 1px solid rgba(200, 60, 50, 0.22);
+  background: rgba(200, 60, 50, 0.08);
+  color: var(--red-dark);
+}
+
+.sync-alert span {
+  flex: 1;
+}
+
+.sync-alert button {
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sync-notice {
+  border: 1px solid rgba(29, 105, 116, 0.2);
+  background: rgba(29, 105, 116, 0.08);
+  color: var(--teal);
 }
 
 .page-stack {
@@ -1350,6 +1425,13 @@ button:disabled {
   line-height: 1.8;
 }
 
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
 .modal-backdrop {
   position: fixed;
   z-index: 100;
@@ -1722,6 +1804,25 @@ button:disabled {
     display: none;
   }
 
+  .sync-pill span {
+    display: none;
+  }
+
+  .sync-pill {
+    width: 32px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .desktop-share {
+    width: 42px;
+    padding: 0;
+  }
+
+  .desktop-share {
+    font-size: 0;
+  }
+
   .hero-grid {
     grid-template-columns: minmax(0, 1fr) minmax(400px, 0.9fr);
     gap: 30px;
@@ -1748,7 +1849,9 @@ button:disabled {
   }
 
   .desktop-nav,
-  .desktop-record {
+  .desktop-record,
+  .desktop-share,
+  .desktop-sync-action {
     display: none;
   }
 
@@ -1879,6 +1982,10 @@ button:disabled {
 
   .main-content {
     padding: 24px 0 105px;
+  }
+
+  .sync-pill {
+    display: none;
   }
 
   .mobile-bottom-nav {
@@ -2086,6 +2193,14 @@ button:disabled {
   .empty-state {
     min-height: 450px;
     padding: 30px 20px;
+  }
+
+  .empty-actions {
+    width: 100%;
+  }
+
+  .empty-actions .button {
+    width: 100%;
   }
 
   .modal-backdrop {
