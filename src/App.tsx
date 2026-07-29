@@ -32,10 +32,10 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import {
-  addSharedGroup,
   addSharedMember,
   createSharedMatch,
   createSharedSpace,
@@ -65,8 +65,13 @@ import { OtokogiIllustration } from './components/OtokogiIllustration'
 import {
   buildShareHash,
   emptyState,
+  forgetRecentGroup,
   getLegacyState,
+  getRecentGroups,
+  getSingleGroupState,
   getShareKeyFromHash,
+  rememberRecentGroup,
+  type RecentGroupLink,
 } from './share'
 
 type SyncStatus =
@@ -93,6 +98,9 @@ function App() {
   const [recordOpen, setRecordOpen] = useState(false)
   const [groupOpen, setGroupOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [recentGroups, setRecentGroups] =
+    useState<RecentGroupLink[]>(getRecentGroups)
+  const migrationInFlight = useRef(false)
 
   const adoptResponse = useCallback(
     (response: SharedStateResponse, preferredGroupId?: string | null) => {
@@ -113,18 +121,88 @@ function App() {
       setLastSyncedAt(response.updatedAt)
       setSyncStatus('synced')
       setSyncError('')
+
+      const group =
+        nextState.groups.find((item) => item.id === nextState.activeGroupId) ??
+        nextState.groups[0]
+      if (group) {
+        setRecentGroups(
+          rememberRecentGroup({
+            key: response.key,
+            groupId: group.id,
+            name: group.name,
+            emoji: group.emoji,
+          }),
+        )
+      }
     },
     [],
+  )
+
+  const splitLegacySharedSpace = useCallback(
+    async (response: SharedStateResponse) => {
+      if (!shareKey || response.state.groups.length < 2) {
+        adoptResponse(response)
+        return
+      }
+
+      const activeGroup =
+        response.state.groups.find(
+          (group) => group.id === response.state.activeGroupId,
+        ) ?? response.state.groups[0]
+      const otherGroups = response.state.groups.filter(
+        (group) => group.id !== activeGroup.id,
+      )
+
+      setSyncStatus('saving')
+
+      for (const group of otherGroups) {
+        const existingLink = getRecentGroups().find(
+          (item) => item.groupId === group.id && item.key !== shareKey,
+        )
+        if (existingLink) continue
+
+        const singleGroupState = getSingleGroupState(response.state, group.id)
+        if (!singleGroupState) continue
+
+        const created = await createSharedSpace(singleGroupState)
+        setRecentGroups(
+          rememberRecentGroup({
+            key: created.key,
+            groupId: group.id,
+            name: group.name,
+            emoji: group.emoji,
+          }),
+        )
+      }
+
+      let compactedResponse = response
+      for (const group of otherGroups) {
+        compactedResponse = await deleteSharedGroup(shareKey, group.id)
+      }
+
+      adoptResponse(compactedResponse, activeGroup.id)
+      setNotice(
+        '共有リンクをグループごとに分離しました。参加中グループから個別に開けます。',
+      )
+    },
+    [adoptResponse, shareKey],
   )
 
   const loadRemoteState = useCallback(
     async (silent = false) => {
       if (!shareKey || !isApiConfigured) return
+      if (migrationInFlight.current) return
       if (!silent) setSyncStatus('loading')
 
       try {
         const response = await fetchSharedState(shareKey)
-        adoptResponse(response)
+        if (response.state.groups.length > 1) {
+          migrationInFlight.current = true
+          await splitLegacySharedSpace(response)
+        } else {
+          adoptResponse(response)
+        }
       } catch (error) {
         setSyncStatus('error')
         setSyncError(
@@ -132,9 +210,11 @@ function App() {
             ? error.message
             : '共有データを読み込めませんでした。',
         )
+      } finally {
+        migrationInFlight.current = false
       }
     },
-    [adoptResponse, shareKey],
+    [adoptResponse, shareKey, splitLegacySharedSpace],
   )
 
   useEffect(() => {
@@ -193,6 +273,15 @@ function App() {
     window.location.hash = nextHash
   }
 
+  const openRecentGroup = (key: string) => {
+    navigateToShareKey(key)
+    setView('home')
+  }
+
+  const removeRecentGroup = (key: string) => {
+    setRecentGroups(forgetRecentGroup(key))
+  }
+
   const handleMutationError = (error: unknown) => {
     setSyncStatus('error')
     setSyncError(
@@ -230,18 +319,18 @@ function App() {
 
     setSyncStatus('saving')
     try {
-      const response = shareKey
-        ? await addSharedGroup(shareKey, group)
-        : await createSharedSpace({
-            groups: [group],
-            matches: [],
-            activeGroupId: group.id,
-          })
+      const response = await createSharedSpace({
+        groups: [group],
+        matches: [],
+        activeGroupId: group.id,
+      })
       adoptResponse(response, group.id)
-      if (!shareKey) navigateToShareKey(response.key)
+      navigateToShareKey(response.key)
       setGroupOpen(false)
       setView('home')
-      setNotice('共有グループを作成しました。URLを仲間に送れます。')
+      setNotice(
+        'グループ専用URLを発行しました。このURLではこのグループだけを共有します。',
+      )
     } catch (error) {
       handleMutationError(error)
     }
@@ -282,6 +371,12 @@ function App() {
     try {
       const response = await deleteSharedGroup(shareKey, groupId)
       adoptResponse(response)
+      setRecentGroups(forgetRecentGroup(shareKey))
+      window.location.hash = ''
+      setShareKey(null)
+      setState(emptyState())
+      setView('home')
+      setNotice('グループを削除しました。')
     } catch (error) {
       handleMutationError(error)
     }
@@ -329,11 +424,38 @@ function App() {
 
     setSyncStatus('saving')
     try {
-      const response = await createSharedSpace(legacyState)
-      adoptResponse(response, legacyState.activeGroupId)
-      navigateToShareKey(response.key)
+      const preferredGroup =
+        legacyState.groups.find(
+          (group) => group.id === legacyState.activeGroupId,
+        ) ?? legacyState.groups[0]
+      let preferredResponse: SharedStateResponse | null = null
+
+      for (const group of legacyState.groups) {
+        const singleGroupState = getSingleGroupState(legacyState, group.id)
+        if (!singleGroupState) continue
+
+        const response = await createSharedSpace(singleGroupState)
+        setRecentGroups(
+          rememberRecentGroup({
+            key: response.key,
+            groupId: group.id,
+            name: group.name,
+            emoji: group.emoji,
+          }),
+        )
+        if (group.id === preferredGroup?.id) preferredResponse = response
+      }
+
+      if (!preferredResponse) {
+        throw new Error('移行できるグループが見つかりませんでした。')
+      }
+
+      adoptResponse(preferredResponse, preferredGroup?.id)
+      navigateToShareKey(preferredResponse.key)
       setLegacyState(null)
-      setNotice('端末の記録を共有データへ移行しました。')
+      setNotice(
+        '端末の記録をグループ別の共有URLへ移行しました。参加中グループから切り替えられます。',
+      )
     } catch (error) {
       handleMutationError(error)
     }
@@ -430,11 +552,15 @@ function App() {
             groups={state.groups}
             matches={state.matches}
             activeGroupId={activeGroup?.id ?? null}
+            currentShareKey={shareKey}
+            recentGroups={recentGroups}
             onCreateGroup={() => setGroupOpen(true)}
             onSelectGroup={(groupId) => {
               selectGroup(groupId)
               setView('home')
             }}
+            onOpenRecentGroup={openRecentGroup}
+            onForgetRecentGroup={removeRecentGroup}
             onAddMember={addMember}
             onDeleteGroup={deleteGroup}
           />
@@ -593,7 +719,7 @@ function Header({
               <span>{syncLabel}</span>
             </div>
           )}
-          {groups.length > 0 && (
+          {groups.length > 1 && (
             <label className="group-switcher">
               <span className="sr-only">表示するグループ</span>
               <select
@@ -1223,8 +1349,12 @@ interface GroupsViewProps {
   groups: Group[]
   matches: Match[]
   activeGroupId: string | null
+  currentShareKey: string | null
+  recentGroups: RecentGroupLink[]
   onCreateGroup: () => void
   onSelectGroup: (groupId: string) => void
+  onOpenRecentGroup: (key: string) => void
+  onForgetRecentGroup: (key: string) => void
   onAddMember: (groupId: string, name: string) => void
   onDeleteGroup: (groupId: string) => void
 }
@@ -1233,8 +1363,12 @@ function GroupsView({
   groups,
   matches,
   activeGroupId,
+  currentShareKey,
+  recentGroups,
   onCreateGroup,
   onSelectGroup,
+  onOpenRecentGroup,
+  onForgetRecentGroup,
   onAddMember,
   onDeleteGroup,
 }: GroupsViewProps) {
@@ -1243,7 +1377,7 @@ function GroupsView({
       <PageTitle
         eyebrow="YOUR CREWS"
         title="グループ"
-        description="家族、友人、同僚。勝負する仲間ごとに記録を分けられます。"
+        description="1つの共有URLにつき1グループ。家族、友人、同僚の記録を別々に管理できます。"
         action={
           <button
             className="button primary"
@@ -1354,6 +1488,73 @@ function GroupsView({
           onAction={onCreateGroup}
         />
       )}
+
+      {recentGroups.length > 0 && (
+        <section className="recent-groups-panel">
+          <div className="recent-groups-heading">
+            <div>
+              <span>JOINED GROUPS</span>
+              <h2>参加中グループ</h2>
+              <p>
+                このブラウザで開いたグループです。各グループは別々の共有URLで管理されています。
+              </p>
+            </div>
+            <strong>{recentGroups.length}グループ</strong>
+          </div>
+          <div className="recent-group-list">
+            {recentGroups.map((group) => {
+              const isCurrent = group.key === currentShareKey
+              return (
+                <article
+                  className={`recent-group-row ${isCurrent ? 'current' : ''}`}
+                  key={group.key}
+                >
+                  <span className="recent-group-emoji">{group.emoji}</span>
+                  <div className="recent-group-copy">
+                    <span>
+                      {isCurrent ? '表示中' : '専用URL'}
+                      {isCurrent && <Check size={13} />}
+                    </span>
+                    <strong>{group.name}</strong>
+                    <small>
+                      最終アクセス：
+                      {new Date(group.lastOpenedAt).toLocaleDateString('ja-JP')}
+                    </small>
+                  </div>
+                  <button
+                    type="button"
+                    className={`button compact ${
+                      isCurrent ? 'secondary' : 'outline'
+                    }`}
+                    onClick={() =>
+                      isCurrent
+                        ? onSelectGroup(group.groupId)
+                        : onOpenRecentGroup(group.key)
+                    }
+                  >
+                    {isCurrent ? 'ホームへ' : '開く'}
+                    <ArrowRight size={16} />
+                  </button>
+                  {!isCurrent && (
+                    <button
+                      type="button"
+                      className="icon-button danger"
+                      onClick={() => onForgetRecentGroup(group.key)}
+                      aria-label={`${group.name}を参加中グループ一覧から外す`}
+                      title="一覧から外す（共有データは削除されません）"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </article>
+              )
+            })}
+          </div>
+          <p className="recent-groups-note">
+            この一覧は現在のブラウザだけに保存されます。別の端末では、各グループの共有URLを一度開くと一覧へ追加されます。
+          </p>
+        </section>
+      )}
     </div>
   )
 }
@@ -1456,20 +1657,22 @@ function HistoryView({
                 placeholder="内容・メンバー名で検索"
               />
             </label>
-            <label className="filter-select">
-              <span className="sr-only">グループ</span>
-              <select
-                value={activeGroup.id}
-                onChange={(event) => onSelectGroup(event.target.value)}
-              >
-                {groups.map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.emoji} {group.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={15} />
-            </label>
+            {groups.length > 1 && (
+              <label className="filter-select">
+                <span className="sr-only">グループ</span>
+                <select
+                  value={activeGroup.id}
+                  onChange={(event) => onSelectGroup(event.target.value)}
+                >
+                  {groups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.emoji} {group.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={15} />
+              </label>
+            )}
             <label className="filter-select">
               <span className="sr-only">カテゴリ</span>
               <select
