@@ -4,13 +4,19 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
+  Cloud,
+  CloudOff,
+  Copy,
   Crown,
   Flame,
   Home,
+  LoaderCircle,
   Menu,
   Plus,
+  RefreshCw,
   Search,
   Settings2,
+  Share2,
   Sparkles,
   Swords,
   Trash2,
@@ -21,12 +27,23 @@ import {
 import {
   type FormEvent,
   type ReactNode,
+  useCallback,
   useEffect,
   useMemo,
   useState,
 } from 'react'
+import {
+  addSharedGroup,
+  addSharedMember,
+  createSharedMatch,
+  createSharedSpace,
+  deleteSharedGroup,
+  deleteSharedMatch,
+  fetchSharedState,
+  type SharedStateResponse,
+} from './api'
+import { isApiConfigured } from './config'
 import { CATEGORY_META, MEMBER_COLORS } from './constants'
-import { sampleState } from './data'
 import {
   formatDate,
   getLevelProgress,
@@ -42,33 +59,113 @@ import type {
   ViewName,
 } from './types'
 import { OtokogiIllustration } from './components/OtokogiIllustration'
+import {
+  buildShareHash,
+  emptyState,
+  getLegacyState,
+  getShareKeyFromHash,
+} from './share'
 
-const STORAGE_KEY = 'otokogi-log-state-v1'
-
-const loadState = (): AppState => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (!saved) return sampleState
-    const parsed = JSON.parse(saved) as AppState
-    if (!Array.isArray(parsed.groups) || !Array.isArray(parsed.matches)) {
-      return sampleState
-    }
-    return parsed
-  } catch {
-    return sampleState
-  }
-}
+type SyncStatus =
+  | 'unconfigured'
+  | 'idle'
+  | 'loading'
+  | 'saving'
+  | 'synced'
+  | 'error'
 
 function App() {
-  const [state, setState] = useState<AppState>(loadState)
+  const [state, setState] = useState<AppState>(emptyState)
+  const [shareKey, setShareKey] = useState(() =>
+    getShareKeyFromHash(window.location.hash),
+  )
+  const [legacyState, setLegacyState] = useState<AppState | null>(getLegacyState)
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(
+    isApiConfigured ? 'idle' : 'unconfigured',
+  )
+  const [syncError, setSyncError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
   const [view, setView] = useState<ViewName>('home')
   const [recordOpen, setRecordOpen] = useState(false)
   const [groupOpen, setGroupOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
+  const adoptResponse = useCallback(
+    (response: SharedStateResponse, preferredGroupId?: string | null) => {
+      const nextState = response.state
+      setState((current) => {
+        const preferredId =
+          preferredGroupId === undefined
+            ? current.activeGroupId
+            : preferredGroupId
+        const activeGroupId =
+          preferredId &&
+          nextState.groups.some((group) => group.id === preferredId)
+            ? preferredId
+            : nextState.activeGroupId
+
+        return { ...nextState, activeGroupId }
+      })
+      setLastSyncedAt(response.updatedAt)
+      setSyncStatus('synced')
+      setSyncError('')
+    },
+    [],
+  )
+
+  const loadRemoteState = useCallback(
+    async (silent = false) => {
+      if (!shareKey || !isApiConfigured) return
+      if (!silent) setSyncStatus('loading')
+
+      try {
+        const response = await fetchSharedState(shareKey)
+        adoptResponse(response)
+      } catch (error) {
+        setSyncStatus('error')
+        setSyncError(
+          error instanceof Error
+            ? error.message
+            : '共有データを読み込めませんでした。',
+        )
+      }
+    },
+    [adoptResponse, shareKey],
+  )
+
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-  }, [state])
+    const onHashChange = () => {
+      const nextKey = getShareKeyFromHash(window.location.hash)
+      setShareKey(nextKey)
+      setState(emptyState())
+      setView('home')
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  useEffect(() => {
+    if (!shareKey || !isApiConfigured) return
+    void loadRemoteState()
+
+    const refreshOnFocus = () => void loadRemoteState(true)
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadRemoteState(true)
+    }, 30000)
+    window.addEventListener('focus', refreshOnFocus)
+
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', refreshOnFocus)
+    }
+  }, [loadRemoteState, shareKey])
+
+  useEffect(() => {
+    if (!notice) return
+    const timeoutId = window.setTimeout(() => setNotice(''), 3500)
+    return () => window.clearTimeout(timeoutId)
+  }, [notice])
 
   const activeGroup =
     state.groups.find((group) => group.id === state.activeGroupId) ??
@@ -84,7 +181,25 @@ function App() {
     setState((current) => ({ ...current, activeGroupId: groupId }))
   }
 
-  const createGroup = (input: {
+  const navigateToShareKey = (key: string) => {
+    const nextHash = buildShareHash(key)
+    if (window.location.hash === nextHash) {
+      setShareKey(key)
+      return
+    }
+    window.location.hash = nextHash
+  }
+
+  const handleMutationError = (error: unknown) => {
+    setSyncStatus('error')
+    setSyncError(
+      error instanceof Error
+        ? error.message
+        : '更新を保存できませんでした。もう一度お試しください。',
+    )
+  }
+
+  const createGroup = async (input: {
     name: string
     description: string
     emoji: string
@@ -104,86 +219,147 @@ function App() {
         createdAt,
       })),
     }
-    setState((current) => ({
-      ...current,
-      groups: [...current.groups, group],
-      activeGroupId: group.id,
-    }))
-    setGroupOpen(false)
-    setView('home')
+
+    if (!isApiConfigured) {
+      setSyncError('共有バックエンドの公開設定がまだ完了していません。')
+      return
+    }
+
+    setSyncStatus('saving')
+    try {
+      const response = shareKey
+        ? await addSharedGroup(shareKey, group)
+        : await createSharedSpace({
+            groups: [group],
+            matches: [],
+            activeGroupId: group.id,
+          })
+      adoptResponse(response, group.id)
+      if (!shareKey) navigateToShareKey(response.key)
+      setGroupOpen(false)
+      setView('home')
+      setNotice('共有グループを作成しました。URLを仲間に送れます。')
+    } catch (error) {
+      handleMutationError(error)
+    }
   }
 
-  const addMember = (groupId: string, name: string) => {
+  const addMember = async (groupId: string, name: string) => {
     const cleanedName = name.trim()
-    if (!cleanedName) return
-    setState((current) => ({
-      ...current,
-      groups: current.groups.map((group) =>
-        group.id === groupId
-          ? {
-              ...group,
-              members: [
-                ...group.members,
-                {
-                  id: uid('member'),
-                  name: cleanedName,
-                  color:
-                    MEMBER_COLORS[group.members.length % MEMBER_COLORS.length],
-                  createdAt: new Date().toISOString(),
-                },
-              ],
-            }
-          : group,
-      ),
-    }))
+    const group = state.groups.find((item) => item.id === groupId)
+    if (!cleanedName || !group || !shareKey) return
+
+    setSyncStatus('saving')
+    try {
+      const response = await addSharedMember(shareKey, groupId, {
+        id: uid('member'),
+        name: cleanedName,
+        color: MEMBER_COLORS[group.members.length % MEMBER_COLORS.length],
+        createdAt: new Date().toISOString(),
+      })
+      adoptResponse(response, groupId)
+    } catch (error) {
+      handleMutationError(error)
+    }
   }
 
-  const deleteGroup = (groupId: string) => {
+  const deleteGroup = async (groupId: string) => {
     const group = state.groups.find((item) => item.id === groupId)
     if (
       !group ||
+      !shareKey ||
       !window.confirm(
         `「${group.name}」と、このグループの勝負記録を削除しますか？`,
       )
     ) {
       return
     }
-    setState((current) => {
-      const groups = current.groups.filter((item) => item.id !== groupId)
-      return {
-        groups,
-        matches: current.matches.filter((match) => match.groupId !== groupId),
-        activeGroupId:
-          current.activeGroupId === groupId
-            ? (groups[0]?.id ?? null)
-            : current.activeGroupId,
+
+    setSyncStatus('saving')
+    try {
+      const response = await deleteSharedGroup(shareKey, groupId)
+      adoptResponse(response)
+    } catch (error) {
+      handleMutationError(error)
+    }
+  }
+
+  const createMatch = async (match: Omit<Match, 'id' | 'createdAt'>) => {
+    if (!shareKey) return
+    setSyncStatus('saving')
+
+    try {
+      const response = await createSharedMatch(shareKey, {
+        ...match,
+        id: uid('match'),
+        createdAt: new Date().toISOString(),
+      })
+      adoptResponse(response, match.groupId)
+      setRecordOpen(false)
+      setView('home')
+    } catch (error) {
+      handleMutationError(error)
+    }
+  }
+
+  const deleteMatch = async (matchId: string) => {
+    if (!shareKey || !window.confirm('この勝負記録を削除しますか？')) return
+    setSyncStatus('saving')
+
+    try {
+      const response = await deleteSharedMatch(shareKey, matchId)
+      adoptResponse(response, activeGroup?.id)
+    } catch (error) {
+      handleMutationError(error)
+    }
+  }
+
+  const importLegacyData = async () => {
+    if (!legacyState || !isApiConfigured) return
+    if (
+      !window.confirm(
+        'この端末に保存されているグループと勝負記録を、共有データとして登録しますか？',
+      )
+    ) {
+      return
+    }
+
+    setSyncStatus('saving')
+    try {
+      const response = await createSharedSpace(legacyState)
+      adoptResponse(response, legacyState.activeGroupId)
+      navigateToShareKey(response.key)
+      setLegacyState(null)
+      setNotice('端末の記録を共有データへ移行しました。')
+    } catch (error) {
+      handleMutationError(error)
+    }
+  }
+
+  const shareCurrentUrl = async () => {
+    const url = window.location.href
+    const groupName = activeGroup?.name ?? '男気録'
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `${groupName} | 男気録`,
+          text: '男気じゃんけんの記録を一緒に更新しよう。',
+          url,
+        })
+      } else {
+        await navigator.clipboard.writeText(url)
+        setNotice('共有URLをコピーしました。')
       }
-    })
-  }
-
-  const createMatch = (match: Omit<Match, 'id' | 'createdAt'>) => {
-    setState((current) => ({
-      ...current,
-      activeGroupId: match.groupId,
-      matches: [
-        {
-          ...match,
-          id: uid('match'),
-          createdAt: new Date().toISOString(),
-        },
-        ...current.matches,
-      ],
-    }))
-    setRecordOpen(false)
-    setView('home')
-  }
-
-  const deleteMatch = (matchId: string) => {
-    if (!window.confirm('この勝負記録を削除しますか？')) return
-    setState((current) => ({
-      ...current,
-      matches: current.matches.filter((match) => match.id !== matchId),
-    }))
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      try {
+        await navigator.clipboard.writeText(url)
+        setNotice('共有URLをコピーしました。')
+      } catch {
+        setSyncError('共有URLをコピーできませんでした。')
+      }
+    }
   }
 
   return (
@@ -198,17 +374,53 @@ function App() {
         onSelectGroup={selectGroup}
         onCreateGroup={() => setGroupOpen(true)}
         onCreateMatch={() => setRecordOpen(true)}
+        hasShareKey={Boolean(shareKey)}
+        syncStatus={syncStatus}
+        lastSyncedAt={lastSyncedAt}
+        onRefresh={() => void loadRemoteState()}
+        onShare={() => void shareCurrentUrl()}
       />
 
       <main className="main-content">
+        {syncError && (
+          <div className="sync-alert" role="alert">
+            <CloudOff size={19} />
+            <span>{syncError}</span>
+            {shareKey && isApiConfigured && (
+              <button type="button" onClick={() => void loadRemoteState()}>
+                再読み込み
+              </button>
+            )}
+          </div>
+        )}
+        {notice && (
+          <div className="sync-notice" role="status">
+            <Check size={18} />
+            {notice}
+          </div>
+        )}
         {view === 'home' && (
-          <Dashboard
-            group={activeGroup}
-            matches={state.matches}
-            onCreateGroup={() => setGroupOpen(true)}
-            onCreateMatch={() => setRecordOpen(true)}
-            onShowHistory={() => setView('history')}
-          />
+          <>
+            {syncStatus === 'loading' && shareKey && !activeGroup ? (
+              <EmptyState
+                icon={<LoaderCircle className="spin" size={42} />}
+                eyebrow="SYNCING"
+                title="共有データを読み込んでいます"
+                description="グループの最新状態を取得しています。"
+              />
+            ) : (
+              <Dashboard
+                group={activeGroup}
+                matches={state.matches}
+                onCreateGroup={() => setGroupOpen(true)}
+                onCreateMatch={() => setRecordOpen(true)}
+                onShowHistory={() => setView('history')}
+                apiConfigured={isApiConfigured}
+                hasLegacyState={Boolean(legacyState)}
+                onImportLegacy={() => void importLegacyData()}
+              />
+            )}
+          </>
         )}
         {view === 'groups' && (
           <GroupsView
@@ -239,7 +451,9 @@ function App() {
       <MobileNav
         view={view}
         onNavigate={changeView}
-        onCreateMatch={() => setRecordOpen(true)}
+        onCreateMatch={() =>
+          activeGroup ? setRecordOpen(true) : setGroupOpen(true)
+        }
       />
 
       {recordOpen && (
@@ -270,6 +484,11 @@ interface HeaderProps {
   onSelectGroup: (groupId: string) => void
   onCreateGroup: () => void
   onCreateMatch: () => void
+  hasShareKey: boolean
+  syncStatus: SyncStatus
+  lastSyncedAt: string | null
+  onRefresh: () => void
+  onShare: () => void
 }
 
 function Header({
@@ -282,7 +501,23 @@ function Header({
   onSelectGroup,
   onCreateGroup,
   onCreateMatch,
+  hasShareKey,
+  syncStatus,
+  lastSyncedAt,
+  onRefresh,
+  onShare,
 }: HeaderProps) {
+  const syncLabel =
+    syncStatus === 'saving'
+      ? '保存中'
+      : syncStatus === 'loading'
+        ? '同期中'
+        : syncStatus === 'error'
+          ? '同期エラー'
+          : syncStatus === 'unconfigured'
+            ? '準備中'
+            : '同期済み'
+
   return (
     <header className="site-header">
       <div className="header-inner">
@@ -321,6 +556,25 @@ function Header({
         </nav>
 
         <div className="header-actions">
+          {hasShareKey && (
+            <div
+              className={`sync-pill ${syncStatus}`}
+              title={
+                lastSyncedAt
+                  ? `最終同期: ${new Date(lastSyncedAt).toLocaleString('ja-JP')}`
+                  : syncLabel
+              }
+            >
+              {syncStatus === 'saving' || syncStatus === 'loading' ? (
+                <LoaderCircle className="spin" size={15} />
+              ) : syncStatus === 'error' ? (
+                <CloudOff size={15} />
+              ) : (
+                <Cloud size={15} />
+              )}
+              <span>{syncLabel}</span>
+            </div>
+          )}
           {groups.length > 0 && (
             <label className="group-switcher">
               <span className="sr-only">表示するグループ</span>
@@ -336,6 +590,27 @@ function Header({
               </select>
               <ChevronDown size={16} aria-hidden="true" />
             </label>
+          )}
+          {hasShareKey && (
+            <>
+              <button
+                type="button"
+                className="icon-button desktop-sync-action"
+                onClick={onRefresh}
+                aria-label="最新の状態に更新"
+                title="最新の状態に更新"
+              >
+                <RefreshCw size={17} />
+              </button>
+              <button
+                type="button"
+                className="button secondary compact desktop-share"
+                onClick={onShare}
+              >
+                <Share2 size={17} />
+                URLを共有
+              </button>
+            </>
           )}
           <button
             className="button primary compact desktop-record"
@@ -377,6 +652,22 @@ function Header({
             label="勝負の記録"
             onClick={() => onNavigate('history')}
           />
+          {hasShareKey && (
+            <>
+              <button
+                className="nav-button"
+                type="button"
+                onClick={onRefresh}
+              >
+                <RefreshCw size={18} />
+                <span>最新に更新</span>
+              </button>
+              <button className="nav-button" type="button" onClick={onShare}>
+                <Copy size={18} />
+                <span>共有URLをコピー</span>
+              </button>
+            </>
+          )}
         </div>
       )}
     </header>
@@ -412,6 +703,9 @@ interface DashboardProps {
   onCreateGroup: () => void
   onCreateMatch: () => void
   onShowHistory: () => void
+  apiConfigured: boolean
+  hasLegacyState: boolean
+  onImportLegacy: () => void
 }
 
 function Dashboard({
@@ -420,16 +714,34 @@ function Dashboard({
   onCreateGroup,
   onCreateMatch,
   onShowHistory,
+  apiConfigured,
+  hasLegacyState,
+  onImportLegacy,
 }: DashboardProps) {
   if (!group) {
+    if (!apiConfigured) {
+      return (
+        <EmptyState
+          icon={<Cloud size={42} />}
+          eyebrow="BACKEND SETUP"
+          title="共有機能の公開準備中です"
+          description="画面の実装は完了しています。Google Apps Scriptの公開URLを設定すると、共有グループを作成できます。"
+        />
+      )
+    }
+
     return (
       <EmptyState
         icon={<Users size={42} />}
         eyebrow="WELCOME"
         title="最初のグループを作ろう"
-        description="一緒に勝負する仲間を登録すると、男気じゃんけんの記録を始められます。"
+        description="作成後に専用URLが発行されます。仲間へ送ると、全員で同じ記録を見たり更新したりできます。"
         actionLabel="グループを作成"
         onAction={onCreateGroup}
+        secondaryActionLabel={
+          hasLegacyState ? 'この端末の記録を共有化' : undefined
+        }
+        onSecondaryAction={hasLegacyState ? onImportLegacy : undefined}
       />
     )
   }
@@ -1098,13 +1410,17 @@ function EmptyState({
   description,
   actionLabel,
   onAction,
+  secondaryActionLabel,
+  onSecondaryAction,
 }: {
   icon: ReactNode
   eyebrow: string
   title: string
   description: string
-  actionLabel: string
-  onAction: () => void
+  actionLabel?: string
+  onAction?: () => void
+  secondaryActionLabel?: string
+  onSecondaryAction?: () => void
 }) {
   return (
     <section className="empty-state">
@@ -1112,11 +1428,25 @@ function EmptyState({
       <span>{eyebrow}</span>
       <h1>{title}</h1>
       <p>{description}</p>
-      {actionLabel && (
-        <button type="button" className="button primary" onClick={onAction}>
-          <Plus size={18} />
-          {actionLabel}
-        </button>
+      {(actionLabel || secondaryActionLabel) && (
+        <div className="empty-actions">
+          {actionLabel && onAction && (
+            <button type="button" className="button primary" onClick={onAction}>
+              <Plus size={18} />
+              {actionLabel}
+            </button>
+          )}
+          {secondaryActionLabel && onSecondaryAction && (
+            <button
+              type="button"
+              className="button outline"
+              onClick={onSecondaryAction}
+            >
+              <Cloud size={18} />
+              {secondaryActionLabel}
+            </button>
+          )}
+        </div>
       )}
     </section>
   )
