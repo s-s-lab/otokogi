@@ -642,10 +642,44 @@ button:disabled {
   stroke-width: 3;
 }
 
+.headband .headband-mark {
+  fill: #e0a932;
+  stroke-width: 1.5;
+}
+
 .crown {
   fill: #e0a932;
   stroke: #171a1c;
   stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+.rank-shoulder-marks {
+  fill: var(--red);
+  stroke: #171a1c;
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.haori-trim {
+  fill: #d8a33a;
+  stroke: #171a1c;
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.rank-flames {
+  fill: #d1493f;
+  opacity: 0.78;
+  stroke: #171a1c;
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.legend-stars {
+  fill: #e0a932;
+  stroke: #171a1c;
+  stroke-width: 2;
   stroke-linejoin: round;
 }
 
@@ -678,6 +712,42 @@ button:disabled {
 .stage-3 .jacket,
 .stage-4 .jacket {
   fill: #171a1c;
+}
+
+.level-2 .headband path:not(.headband-mark) {
+  fill: #c9573f;
+}
+
+.level-3 .headband path:not(.headband-mark) {
+  fill: #ce7834;
+}
+
+.level-4 .headband path:not(.headband-mark) {
+  fill: #2d6570;
+}
+
+.level-5 .headband path:not(.headband-mark),
+.level-6 .headband path:not(.headband-mark) {
+  fill: #343b3e;
+}
+
+.level-7 .headband path:not(.headband-mark) {
+  fill: #722f2c;
+}
+
+.level-8 .headband path:not(.headband-mark),
+.level-9 .headband path:not(.headband-mark) {
+  fill: #9e302b;
+}
+
+.level-10 .headband path:not(.headband-mark) {
+  fill: #b98021;
+}
+
+.otokogi-illustration.compact {
+  width: 100%;
+  min-width: 0;
+  animation: none;
 }
 
 .brush-label {
@@ -1387,7 +1457,8 @@ button:disabled {
 .rank-level-card {
   min-width: 0;
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
+  grid-template-columns: 58px 96px minmax(0, 1fr);
+  min-height: 132px;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -1434,6 +1505,48 @@ button:disabled {
 .rank-level-card.current .rank-level-number span,
 .rank-level-card.current .rank-level-number strong {
   color: #fff;
+}
+
+.rank-level-illustration {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  place-items: end center;
+  overflow: hidden;
+  border-right: 1px solid var(--line);
+  background:
+    radial-gradient(circle at 50% 46%, rgba(211, 146, 43, 0.13), transparent 60%),
+    rgba(23, 26, 28, 0.018);
+}
+
+.rank-level-illustration::after {
+  position: absolute;
+  right: 10px;
+  bottom: 9px;
+  left: 10px;
+  height: 1px;
+  background: rgba(23, 26, 28, 0.08);
+  content: "";
+}
+
+.rank-level-illustration .otokogi-illustration {
+  width: 112px;
+  height: 123px;
+  margin: 0 -8px -1px;
+}
+
+.rank-level-illustration .sun-rays {
+  opacity: 0.22;
+}
+
+.rank-level-illustration .sun-disc {
+  opacity: 0.38;
+}
+
+.rank-level-card.current .rank-level-illustration {
+  background:
+    radial-gradient(circle at 50% 46%, rgba(200, 60, 50, 0.16), transparent 62%),
+    rgba(255, 253, 248, 0.62);
 }
 
 .rank-level-main {
@@ -1518,6 +1631,12 @@ button:disabled {
 .rank-level-card:last-child .rank-level-number span,
 .rank-level-card:last-child .rank-level-number strong {
   color: #fff;
+}
+
+.rank-level-card:last-child .rank-level-illustration {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(224, 169, 50, 0.27), transparent 61%),
+    rgba(255, 251, 235, 0.72);
 }
 
 .rank-level-card:last-child .rank-level-width {
@@ -2607,7 +2726,11 @@ button:disabled {
   }
 
   .rank-level-card {
-    grid-template-columns: 57px minmax(0, 1fr);
+    grid-template-columns: 53px 91px minmax(0, 1fr);
+  }
+
+  .rank-level-illustration .otokogi-illustration {
+    width: 106px;
   }
 
   .point-rule-grid {
