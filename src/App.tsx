@@ -11,6 +11,7 @@ import {
   Flame,
   Home,
   LoaderCircle,
+  Medal,
   Menu,
   Plus,
   RefreshCw,
@@ -19,6 +20,7 @@ import {
   Share2,
   Sparkles,
   Swords,
+  Target,
   Trash2,
   Trophy,
   Users,
@@ -49,6 +51,7 @@ import {
   getLevelProgress,
   getOtokogiLevel,
   getScores,
+  OTOKOGI_LEVELS,
   uid,
 } from './lib'
 import type {
@@ -446,6 +449,15 @@ function App() {
             onDeleteMatch={deleteMatch}
           />
         )}
+        {view === 'ranks' && (
+          <RankGuideView
+            group={activeGroup}
+            matches={state.matches}
+            onCreateMatch={() =>
+              activeGroup ? setRecordOpen(true) : setGroupOpen(true)
+            }
+          />
+        )}
       </main>
 
       <MobileNav
@@ -553,6 +565,12 @@ function Header({
             label="勝負の記録"
             onClick={() => onNavigate('history')}
           />
+          <NavButton
+            active={view === 'ranks'}
+            icon={<Medal size={18} />}
+            label="ランク制度"
+            onClick={() => onNavigate('ranks')}
+          />
         </nav>
 
         <div className="header-actions">
@@ -651,6 +669,12 @@ function Header({
             icon={<Archive size={18} />}
             label="勝負の記録"
             onClick={() => onNavigate('history')}
+          />
+          <NavButton
+            active={view === 'ranks'}
+            icon={<Medal size={18} />}
+            label="ランク制度"
+            onClick={() => onNavigate('ranks')}
           />
           {hasShareKey && (
             <>
@@ -993,6 +1017,195 @@ function SectionHeading({
       </div>
       {aside && <span className="section-aside">{aside}</span>}
       {action}
+    </div>
+  )
+}
+
+function RankGuideView({
+  group,
+  matches,
+  onCreateMatch,
+}: {
+  group: Group | null
+  matches: Match[]
+  onCreateMatch: () => void
+}) {
+  const scores = group ? getScores(group, matches) : []
+  const highestPoints = scores[0]?.points ?? 0
+  const highestLevel = getOtokogiLevel(highestPoints)
+
+  return (
+    <div className="page-stack narrow-page rank-guide-page">
+      <PageTitle
+        eyebrow="OTOKOGI RANK"
+        title="男気ランクへの道"
+        description="勝負を重ねてポイントを獲得し、100PTの「天下無双の男気王」を目指そう。"
+        action={
+          <button type="button" className="button primary" onClick={onCreateMatch}>
+            <Swords size={18} />
+            {group ? '勝負を記録' : 'グループを作成'}
+          </button>
+        }
+      />
+
+      <section className="rank-goal-card">
+        <div className="rank-goal-icon">
+          <Crown size={35} />
+        </div>
+        <div className="rank-goal-copy">
+          <span>THE FINAL RANK</span>
+          <h2>100PTで、天下無双の男気王へ。</h2>
+          <p>
+            序盤はテンポよく、上位になるほど昇格の壁が高くなる全10段階。
+            日々の小さな勝負も、大勝負も、すべてが男気の証になる。
+          </p>
+        </div>
+        <div className="rank-goal-stats">
+          <div>
+            <strong>10</strong>
+            <span>全ランク</span>
+          </div>
+          <div>
+            <strong>100</strong>
+            <span>最終到達PT</span>
+          </div>
+        </div>
+      </section>
+
+      {group && scores.length > 0 && (
+        <section className="panel member-rank-panel">
+          <SectionHeading
+            icon={<Target />}
+            eyebrow="NEXT TARGET"
+            title={`${group.emoji} ${group.name} の挑戦状況`}
+            aside="次のランクまでの残りポイント"
+          />
+          <div className="member-rank-grid">
+            {scores.map((score) => {
+              const level = getOtokogiLevel(score.points)
+              const progress = getLevelProgress(score.points, level)
+              const remaining =
+                level.next === null ? null : level.next - score.points
+
+              return (
+                <article className="member-rank-card" key={score.member.id}>
+                  <div className="member-rank-person">
+                    <Avatar
+                      name={score.member.name}
+                      color={score.member.color}
+                      size="medium"
+                    />
+                    <div>
+                      <strong>{score.member.name}</strong>
+                      <span>LEVEL {String(level.order).padStart(2, '0')}</span>
+                    </div>
+                    <b>{score.points} PT</b>
+                  </div>
+                  <h3>{level.name}</h3>
+                  <div className="member-rank-target">
+                    <span>
+                      {remaining === null
+                        ? '最終ランク到達'
+                        : `次のランクまで あと ${remaining} PT`}
+                    </span>
+                    <strong>{Math.round(progress)}%</strong>
+                  </div>
+                  <div className="progress-track">
+                    <div
+                      className="progress-fill"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="panel rank-ladder-panel">
+        <SectionHeading
+          icon={<Medal />}
+          eyebrow="RANK LADDER"
+          title="全10段階のランク表"
+          aside="上位ほど必要ポイント幅が広がります"
+        />
+        <div className="rank-ladder">
+          {OTOKOGI_LEVELS.map((level) => {
+            const isCurrent = Boolean(group) && level.order === highestLevel.order
+            const isReached = Boolean(group) && highestPoints >= level.min
+            const range =
+              level.next === null
+                ? `${level.min} PT以上`
+                : `${level.min}〜${level.next - 1} PT`
+
+            return (
+              <article
+                className={`rank-level-card ${
+                  isCurrent ? 'current' : isReached ? 'reached' : ''
+                }`}
+                key={level.order}
+              >
+                <div className="rank-level-number">
+                  <span>LEVEL</span>
+                  <strong>{String(level.order).padStart(2, '0')}</strong>
+                </div>
+                <div className="rank-level-main">
+                  <div className="rank-level-heading">
+                    <div>
+                      <span>{range}</span>
+                      <h3>{level.name}</h3>
+                    </div>
+                    {isCurrent ? (
+                      <b>グループ最高</b>
+                    ) : isReached ? (
+                      <b>到達済み</b>
+                    ) : null}
+                  </div>
+                  <p>{level.message}</p>
+                  <div className="rank-level-width">
+                    {level.next === null ? (
+                      <>
+                        <Crown size={15} />
+                        FINAL
+                      </>
+                    ) : (
+                      <>
+                        昇格幅
+                        <strong>{level.next - level.min} PT</strong>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      </section>
+
+      <section className="panel point-rule-panel">
+        <SectionHeading
+          icon={<Flame />}
+          eyebrow="HOW TO EARN"
+          title="男気ポイントの獲得目安"
+          aside="勝負の登録時にポイントは変更できます"
+        />
+        <div className="point-rule-grid">
+          {Object.values(CATEGORY_META).map((meta) => (
+            <div className="point-rule-card" key={meta.label}>
+              <span>{meta.emoji}</span>
+              <div>
+                <strong>{meta.label}</strong>
+                <small>{meta.description}</small>
+              </div>
+              <b>+{meta.points} PT</b>
+            </div>
+          ))}
+        </div>
+        <p className="rank-note">
+          ランクは各メンバーの累計ポイントから自動判定されます。過去の記録も新しい基準で再計算され、データを入力し直す必要はありません。
+        </p>
+      </section>
     </div>
   )
 }
@@ -1914,6 +2127,12 @@ function MobileNav({
         label="ホーム"
         onClick={() => onNavigate('home')}
       />
+      <NavButton
+        active={view === 'history'}
+        icon={<Archive size={20} />}
+        label="記録"
+        onClick={() => onNavigate('history')}
+      />
       <button
         type="button"
         className="mobile-add"
@@ -1923,10 +2142,10 @@ function MobileNav({
         <Plus size={25} />
       </button>
       <NavButton
-        active={view === 'history'}
-        icon={<Archive size={20} />}
-        label="記録"
-        onClick={() => onNavigate('history')}
+        active={view === 'ranks'}
+        icon={<Medal size={20} />}
+        label="ランク"
+        onClick={() => onNavigate('ranks')}
       />
       <NavButton
         active={view === 'groups'}

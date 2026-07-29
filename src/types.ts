@@ -35,4 +35,4 @@ export interface AppState {
   activeGroupId: string | null
 }
 
-export type ViewName = 'home' | 'groups' | 'history'
+export type ViewName = 'home' | 'groups' | 'history' | 'ranks'

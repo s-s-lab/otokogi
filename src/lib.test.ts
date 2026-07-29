@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { getLevelProgress, getOtokogiLevel, getScores } from './lib'
+import {
+  getLevelProgress,
+  getOtokogiLevel,
+  getScores,
+  OTOKOGI_LEVELS,
+} from './lib'
 import type { Group, Match } from './types'
 
 const group: Group = {
@@ -52,14 +57,33 @@ describe('getScores', () => {
 })
 
 describe('getOtokogiLevel', () => {
-  it('しきい値に応じたレベルを返す', () => {
-    expect(getOtokogiLevel(0).stage).toBe(0)
-    expect(getOtokogiLevel(5).stage).toBe(2)
-    expect(getOtokogiLevel(20).stage).toBe(4)
+  it('10段階のしきい値に応じたレベルを返す', () => {
+    const thresholds = [0, 3, 7, 13, 21, 31, 44, 60, 79, 100]
+
+    expect(OTOKOGI_LEVELS).toHaveLength(10)
+    thresholds.forEach((points, index) => {
+      expect(getOtokogiLevel(points).order).toBe(index + 1)
+    })
+
+    expect(getOtokogiLevel(99).shortName).toBe('男気伝説')
+    expect(getOtokogiLevel(100).shortName).toBe('男気王')
+    expect(getOtokogiLevel(999).shortName).toBe('男気王')
   })
 
-  it('次のレベルまでの進捗を計算する', () => {
-    const level = getOtokogiLevel(8)
-    expect(getLevelProgress(8, level)).toBeCloseTo(42.857, 2)
+  it('後半ほど昇格に必要なポイント幅が大きくなる', () => {
+    const widths = OTOKOGI_LEVELS.slice(0, -1).map(
+      (level) => (level.next ?? level.min) - level.min,
+    )
+
+    expect(widths).toEqual([3, 4, 6, 8, 10, 13, 16, 19, 21])
+    widths.slice(1).forEach((width, index) => {
+      expect(width).toBeGreaterThan(widths[index])
+    })
+  })
+
+  it('現在のランク内で次のレベルまでの進捗を計算する', () => {
+    const level = getOtokogiLevel(50)
+    expect(getLevelProgress(50, level)).toBeCloseTo(37.5, 2)
+    expect(getLevelProgress(120, getOtokogiLevel(120))).toBe(100)
   })
 })
